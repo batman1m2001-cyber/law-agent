@@ -13,15 +13,13 @@ from src.extractor import extract_obligations_stream
 
 
 def process_document(file):
-    """Generator that yields (progress_html, dataframe, excel_path) as extraction runs."""
+    """Generator that yields (progress_html, dataframe, excel_path)."""
     if file is None:
         yield "Upload file để bắt đầu.", pd.DataFrame(), None
         return
 
     t_start = time.time()
-
-    # --- Parsing ---
-    yield _status_html(0, 1, "Đọc văn bản...", [], t_start), pd.DataFrame(), None
+    yield _progress_bar(0, 1, "Đọc văn bản..."), pd.DataFrame(), None
 
     try:
         text = read_document(file.name)
@@ -31,34 +29,26 @@ def process_document(file):
 
     meta = extract_metadata(text)
     chunks = chunk_document(text)
-    total_articles = sum(len(c.articles) for c in chunks)
+    n = len(chunks)
+    header = f"<b>{meta.so_van_ban}</b> — {n} điều"
 
-    header = f"<b>{meta.so_van_ban}</b> — {len(chunks)} chunks, {total_articles} điều"
-
-    # --- LLM extraction (streaming) ---
     all_obligations = []
-    df = pd.DataFrame(columns=["Điều", "Loại", "Tiêu đề", "Hành động TCB"])
+    skipped = []
+    df = pd.DataFrame(columns=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB"])
+    info = None
 
     for info in extract_obligations_stream(chunks):
-        html = _status_html(
-            info.articles_done, total_articles,
-            info.chunk_label, info.timeline, t_start,
-            header=header,
-            phase=info.phase,
-        )
-
+        if info.phase == "skip":
+            skipped.append(info.article_label)
         if info.phase == "done" and info.new_obligations:
             all_obligations.extend(info.new_obligations)
             df = _build_df(all_obligations)
+        yield _build_status(header, info, skipped, t_start), df, None
 
-        yield html, df, None
-
-    # --- Done: generate Excel ---
+    # Generate Excel
+    elapsed = time.time() - t_start
     if not all_obligations:
-        elapsed = time.time() - t_start
-        yield (
-            header + f"<br><b>Không tìm thấy nghĩa vụ nào.</b> ({elapsed:.0f}s)"
-        ), df, None
+        yield header + "<br><b>Không tìm thấy nghĩa vụ nào.</b>", df, None
         return
 
     excel_buf = create_excel(
@@ -72,134 +62,126 @@ def process_document(file):
     tmp.write(excel_buf.getvalue())
     tmp.close()
 
-    elapsed = time.time() - t_start
-    final_html = _status_html(
-        total_articles, total_articles, "Xong", [],
-        t_start, header=header, phase="complete",
-        timeline_entries=all_obligations,
-    )
-    # Rebuild with full timeline from last info
-    final_html = _status_html(
-        total_articles, total_articles, "Xong", info.timeline,
-        t_start, header=header, phase="complete",
-    )
-    final_html += (
+    final = _build_status(header, info, skipped, t_start)
+    final += (
         f"<div style='margin-top:8px;padding:8px;background:#e8f5e9;border-radius:6px'>"
         f"<b style='color:#2e7d32'>Hoàn tất! {len(all_obligations)} nghĩa vụ "
-        f"trong {elapsed:.0f}s</b></div>"
+        f"trong {_fmt(elapsed)}</b></div>"
     )
-    yield final_html, df, tmp.name
+    yield final, df, tmp.name
 
 
 def _on_stop(current_html):
-    """Called when user clicks Stop — append red stopped message."""
     stop_msg = (
         "<div style='margin-top:8px;padding:8px;background:#ffebee;border-radius:6px'>"
         "<b style='color:#c62828'>Đã dừng trích xuất.</b></div>"
     )
-    if current_html and isinstance(current_html, str):
-        return current_html + stop_msg
-    return stop_msg
+    return (current_html or "") + stop_msg
 
 
 def _build_df(obligations):
     return pd.DataFrame([
         {
             "Điều": ob.dieu,
-            "Loại": "Bắt buộc" if ob.loai == "bat_buoc" else "Quyền",
+            "Loại": {"bat_buoc": "Bắt buộc", "quyen": "Quyền", "dinh_nghia": "Định nghĩa"}.get(ob.loai, ob.loai),
             "Tiêu đề": ob.tieu_de,
+            "Nghĩa vụ pháp luật": ob.noi_dung,
             "Hành động TCB": ob.hanh_dong,
         }
         for ob in obligations
     ])
 
 
-def _progress_bar(current: int, total: int, label: str, detail: str = "") -> str:
-    pct = int(current / total * 100) if total > 0 else 0
-    bar_color = "#4472C4" if pct < 100 else "#2e7d32"
-    short = (detail[:50] + "...") if len(detail) > 50 else detail
-    return (
-        f"<div style='margin:4px 0'>"
-        f"<span style='font-size:13px'><b>{label}</b> [{current}/{total}] "
-        f"<span style='color:#666'>{short}</span></span>"
-        f"<div style='background:#e0e0e0;border-radius:4px;height:7px;margin:2px 0'>"
-        f"<div style='background:{bar_color};width:{pct}%;height:100%;border-radius:4px;"
-        f"transition:width 0.3s'></div></div></div>"
-    )
-
-
-def _format_duration(secs: float) -> str:
+def _fmt(secs: float) -> str:
     if secs < 60:
         return f"{secs:.1f}s"
     m, s = divmod(secs, 60)
     return f"{int(m)}m{s:.0f}s"
 
 
-def _timeline_html(timeline_entries) -> str:
-    if not timeline_entries:
-        return ""
-    rows = []
-    for e in timeline_entries:
-        icon = "🔍" if e.step == "classify" else "⚡"
-        step_label = "Phân loại" if e.step == "classify" else "Sinh hành động"
-        ts = _format_duration(e.timestamp)
-        dur = _format_duration(e.duration)
-        # Shorten chunk label
-        short_label = e.chunk_label
-        if len(short_label) > 40:
-            short_label = short_label[:37] + "..."
-        rows.append(
-            f"<tr style='font-size:12px;border-bottom:1px solid #eee'>"
-            f"<td style='padding:2px 6px;color:#888;white-space:nowrap'>{ts}</td>"
-            f"<td style='padding:2px 6px;white-space:nowrap'>{icon} {step_label}</td>"
-            f"<td style='padding:2px 6px;color:#555'>{short_label}</td>"
-            f"<td style='padding:2px 6px;font-weight:600;white-space:nowrap'>{dur}</td>"
-            f"<td style='padding:2px 6px;color:#666'>{e.detail}</td>"
-            f"</tr>"
-        )
+def _progress_bar(current: int, total: int, detail: str = "") -> str:
+    pct = int(current / total * 100) if total > 0 else 0
+    color = "#2e7d32" if pct >= 100 else "#4472C4"
+    short = (detail[:55] + "...") if len(detail) > 55 else detail
     return (
-        "<div style='margin-top:8px;max-height:200px;overflow-y:auto;"
-        "border:1px solid #e0e0e0;border-radius:6px'>"
-        "<table style='width:100%;border-collapse:collapse'>"
-        "<tr style='background:#f5f5f5;font-size:11px;font-weight:600'>"
-        "<td style='padding:3px 6px'>Thời gian</td>"
-        "<td style='padding:3px 6px'>Bước</td>"
-        "<td style='padding:3px 6px'>Chunk</td>"
-        "<td style='padding:3px 6px'>Thời lượng</td>"
-        "<td style='padding:3px 6px'>Kết quả</td></tr>"
-        + "".join(rows)
-        + "</table></div>"
+        f"<div style='margin:4px 0'>"
+        f"<span style='font-size:13px'><b>Tiến trình</b> [{current}/{total}] "
+        f"<span style='color:#666'>{short}</span></span>"
+        f"<div style='background:#e0e0e0;border-radius:4px;height:7px;margin:2px 0'>"
+        f"<div style='background:{color};width:{pct}%;height:100%;border-radius:4px;"
+        f"transition:width 0.3s'></div></div></div>"
     )
 
 
-def _status_html(articles_done, total_articles, current_label, timeline,
-                 t_start, header="", phase="", **_kwargs):
-    elapsed = time.time() - t_start
-    parts = []
+def _build_status(header, info, skipped, t_start):
+    parts = [f"<div style='margin-bottom:6px'>{header}</div>"]
 
-    if header:
-        parts.append(f"<div style='margin-bottom:6px'>{header}</div>")
-
-    # Main progress bar - article level
-    if phase == "complete":
-        detail = f"Hoàn tất — {_format_duration(elapsed)}"
-    elif phase == "intent":
-        detail = f"Phân loại: {current_label}"
-    elif phase == "action":
-        detail = f"Sinh hành động: {current_label}"
+    # Progress bar
+    if info.phase == "extracting":
+        detail = f"Phân loại: {info.article_label}"
+    elif info.phase == "streaming":
+        detail = f"Đang sinh hành động: {info.article_label}"
+    elif info.phase == "skip":
+        detail = f"Bỏ qua: {info.article_label}"
     else:
-        detail = current_label
+        detail = info.article_label
+    parts.append(_progress_bar(info.articles_done, info.total_articles, detail))
 
-    parts.append(_progress_bar(articles_done, total_articles, "Tiến trình", detail))
-
-    # Elapsed time
+    # Elapsed
     parts.append(
-        f"<div style='font-size:12px;color:#888;margin:2px 0'>"
-        f"Thời gian: {_format_duration(elapsed)}</div>"
+        f"<div style='font-size:12px;color:#888;margin:2px 0'>Thời gian: {_fmt(time.time() - t_start)}</div>"
     )
 
-    # Timeline log
-    parts.append(_timeline_html(timeline))
+    # Streaming preview
+    if info.phase == "streaming" and info.streaming_text:
+        # Show last ~500 chars of streaming text as preview
+        preview = info.streaming_text
+        if len(preview) > 500:
+            preview = "..." + preview[-500:]
+        preview_escaped = preview.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+        parts.append(
+            f"<div style='margin:6px 0;padding:8px 10px;background:#f3f0ff;border-radius:6px;"
+            f"border-left:3px solid #7c4dff;font-size:12px;font-family:monospace;"
+            f"max-height:150px;overflow-y:auto;white-space:pre-wrap;word-break:break-word'>"
+            f"<b style='color:#7c4dff'>Action streaming ({len(info.streaming_text)} chars):</b><br>"
+            f"{preview_escaped}</div>"
+        )
+
+    # Skipped warnings
+    if skipped:
+        items = "".join(f"<li>{s}</li>" for s in skipped)
+        parts.append(
+            f"<div style='margin:6px 0;padding:6px 8px;background:#fff3e0;border-radius:6px;"
+            f"border-left:3px solid #ff9800;font-size:12px'>"
+            f"<b style='color:#e65100'>Bỏ qua ({len(skipped)} điều quá dài):</b>"
+            f"<ul style='margin:2px 0 0 16px;padding:0'>{items}</ul></div>"
+        )
+
+    # Timeline
+    if info.timeline:
+        rows = []
+        for e in info.timeline:
+            icon = "⏭️" if e.step == "skip" else "📄"
+            short_label = e.label if len(e.label) <= 45 else e.label[:42] + "..."
+            rows.append(
+                f"<tr style='font-size:12px;border-bottom:1px solid #eee'>"
+                f"<td style='padding:2px 6px;color:#888;white-space:nowrap'>{_fmt(e.timestamp)}</td>"
+                f"<td style='padding:2px 6px;color:#555'>{icon} {short_label}</td>"
+                f"<td style='padding:2px 6px;font-weight:600;white-space:nowrap'>{_fmt(e.duration)}</td>"
+                f"<td style='padding:2px 6px;color:#666'>{e.detail}</td></tr>"
+            )
+        parts.append(
+            "<div style='margin-top:8px;max-height:200px;overflow-y:auto;"
+            "border:1px solid #e0e0e0;border-radius:6px'>"
+            "<table style='width:100%;border-collapse:collapse'>"
+            "<tr style='background:#f5f5f5;font-size:11px;font-weight:600'>"
+            "<td style='padding:3px 6px'>Thời gian</td>"
+            "<td style='padding:3px 6px'>Điều</td>"
+            "<td style='padding:3px 6px'>Thời lượng</td>"
+            "<td style='padding:3px 6px'>Kết quả</td></tr>"
+            + "".join(rows)
+            + "</table></div>"
+        )
 
     return "".join(parts)
 
@@ -209,7 +191,6 @@ with gr.Blocks(title="Trích xuất Nghĩa vụ Tuân thủ") as app:
     gr.Markdown("## Trích xuất Nghĩa vụ Tuân thủ Pháp luật")
 
     with gr.Row():
-        # Left panel: upload + progress
         with gr.Column(scale=2):
             file_input = gr.File(
                 label="Upload văn bản pháp luật (.doc / .docx)",
@@ -219,17 +200,17 @@ with gr.Blocks(title="Trích xuất Nghĩa vụ Tuân thủ") as app:
             stop_btn = gr.Button("Dừng", variant="stop")
             progress_html = gr.HTML(value="Upload file và bấm Phân tích để bắt đầu.")
 
-        # Right panel: results table
         with gr.Column(scale=3):
             results_table = gr.Dataframe(
-                headers=["Điều", "Loại", "Tiêu đề", "Hành động TCB"],
+                headers=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB"],
+                datatype=["str", "str", "str", "html", "str"],
                 label="Kết quả trích xuất",
                 interactive=False,
                 wrap=True,
+                column_widths=["60px", "80px", "150px", "350px", "300px"],
             )
             excel_file = gr.File(label="Tải Excel", visible=True)
 
-    # Wire events
     run_event = run_btn.click(
         fn=process_document,
         inputs=[file_input],

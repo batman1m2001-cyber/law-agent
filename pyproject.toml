@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "gradio>=6.9.0",
+    "mammoth>=1.11.0",
     "olefile>=0.47",
     "openai>=2.26.0",
     "openpyxl>=3.1.5",

@@ -1,4 +1,4 @@
-"""LLM extraction pipeline: Node 1 (classify) → Node 2 (generate actions)."""
+"""LLM extraction — 2 prompts per Điều, action streaming."""
 
 import json
 import logging
@@ -11,12 +11,20 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from .chunker import Chunk
-from .prompts import NODE1_SYSTEM, NODE1_USER, NODE2_SYSTEM, NODE2_USER
+from .document_reader import _text_to_html
+from .prompts import (
+    ACTION_SYSTEM, ACTION_USER,
+    CLASSIFY_SYSTEM, CLASSIFY_USER,
+)
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+MAX_ARTICLE_CHARS = 30000
+
+STREAM_YIELD_EVERY = 15  # yield every N chars to avoid overwhelming UI
 
 
 @dataclass
@@ -24,30 +32,29 @@ class Obligation:
     """A single extracted legal obligation."""
     dieu: str
     tieu_de: str
-    noi_dung: str
+    noi_dung: str  # HTML formatted from original doc
     hanh_dong: str
-    loai: str  # "bat_buoc" or "quyen"
+    loai: str
 
 
 @dataclass
 class TimelineEntry:
-    """A single entry in the processing timeline."""
-    timestamp: float  # seconds since start
-    chunk_label: str
-    step: str  # "classify" | "actions"
-    duration: float  # seconds
-    detail: str  # e.g. "→ 8 nghĩa vụ"
+    timestamp: float
+    label: str
+    step: str
+    duration: float
+    detail: str
 
 
 @dataclass
 class ProgressInfo:
-    """Progress update yielded during extraction."""
-    phase: str  # "intent" | "action" | "done"
-    articles_done: int  # cumulative articles processed
+    phase: str  # "extracting" | "streaming" | "done" | "skip"
+    articles_done: int
     total_articles: int
-    chunk_label: str
+    article_label: str
     new_obligations: list[Obligation]
     timeline: list[TimelineEntry] = field(default_factory=list)
+    streaming_text: str = ""
 
 
 def _call_llm(client: OpenAI, system: str, user: str, retry: int = 2) -> str:
@@ -70,7 +77,33 @@ def _call_llm(client: OpenAI, system: str, user: str, retry: int = 2) -> str:
             raise
 
 
-def _parse_json_array(text: str) -> list[dict]:
+def _call_llm_stream(client: OpenAI, system: str, user: str) -> Generator[str, None, None]:
+    """Stream LLM response, yielding accumulated text progressively."""
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.1,
+        stream=True,
+    )
+    accumulated = ""
+    chars_since_yield = 0
+    for chunk in response:
+        delta = chunk.choices[0].delta.content or ""
+        if delta:
+            accumulated += delta
+            chars_since_yield += len(delta)
+            if chars_since_yield >= STREAM_YIELD_EVERY:
+                chars_since_yield = 0
+                yield accumulated
+    # Final yield with complete text
+    yield accumulated
+
+
+def _parse_json_array(text: str, key: str = "") -> list[dict]:
     text = text.strip()
     try:
         parsed = json.loads(text)
@@ -85,6 +118,8 @@ def _parse_json_array(text: str) -> list[dict]:
     if isinstance(parsed, list):
         return parsed
     if isinstance(parsed, dict):
+        if key and key in parsed and isinstance(parsed[key], list):
+            return parsed[key]
         for v in parsed.values():
             if isinstance(v, list):
                 return v
@@ -93,101 +128,77 @@ def _parse_json_array(text: str) -> list[dict]:
     return []
 
 
-def _node1_classify(client: OpenAI, chunk: Chunk) -> list[dict]:
-    user_prompt = NODE1_USER.format(chunk_text=chunk.text)
-    response = _call_llm(client, NODE1_SYSTEM, user_prompt)
-    items = _parse_json_array(response)
-    return [item for item in items if item.get("loai") != "bo_qua"]
-
-
-def _node2_actions(client: OpenAI, obligations: list[dict]) -> list[dict]:
-    if not obligations:
-        return []
-    input_data = [
-        {"dieu": ob.get("dieu", ""), "noi_dung": ob.get("noi_dung", "")}
-        for ob in obligations
-    ]
-    user_prompt = NODE2_USER.format(
-        obligations_json=json.dumps(input_data, ensure_ascii=False, indent=2)
-    )
-    response = _call_llm(client, NODE2_SYSTEM, user_prompt)
-    return _parse_json_array(response)
+def _classify(client: OpenAI, article_text: str) -> list[dict]:
+    user_prompt = CLASSIFY_USER.format(article_text=article_text)
+    response = _call_llm(client, CLASSIFY_SYSTEM, user_prompt)
+    return _parse_json_array(response, "obligations")
 
 
 def extract_obligations_stream(
     chunks: list[Chunk],
 ) -> Generator[ProgressInfo, None, None]:
-    """Yield ProgressInfo after each step so UI can update in real time."""
+    """Yield ProgressInfo per article. Streams action generation tokens."""
     client = OpenAI()
-    total_articles = sum(len(c.articles) for c in chunks)
-    articles_done = 0
+    n = len(chunks)
     timeline: list[TimelineEntry] = []
     t0 = time.time()
 
     for i, chunk in enumerate(chunks):
-        chunk_label = chunk.chapter
-        if chunk.section:
-            chunk_label += f" > {chunk.section}"
-        chunk_label += f" ({', '.join(chunk.articles)})"
-        chunk_article_count = len(chunk.articles)
+        label = f"{chunk.article_id}. {chunk.article_title}"
 
-        # Node 1 - about to start
-        yield ProgressInfo("intent", articles_done, total_articles, chunk_label, [],
-                           list(timeline))
-
-        t1 = time.time()
-        classified = _node1_classify(client, chunk)
-        dur1 = time.time() - t1
-
-        n_found = len(classified)
-        timeline.append(TimelineEntry(
-            timestamp=time.time() - t0,
-            chunk_label=chunk_label,
-            step="classify",
-            duration=dur1,
-            detail=f"→ {n_found} nghĩa vụ" if n_found else "→ bỏ qua",
-        ))
-
-        if not classified:
-            articles_done += chunk_article_count
-            yield ProgressInfo("done", articles_done, total_articles, chunk_label, [],
-                               list(timeline))
+        if len(chunk.text) > MAX_ARTICLE_CHARS:
+            timeline.append(TimelineEntry(
+                timestamp=time.time() - t0, label=label, step="skip",
+                duration=0, detail=f"Quá dài ({len(chunk.text):,} ký tự)",
+            ))
+            yield ProgressInfo("skip", i + 1, n, label, [], list(timeline))
             continue
 
-        # Node 2 - about to start
-        yield ProgressInfo("action", articles_done, total_articles, chunk_label, [],
-                           list(timeline))
+        yield ProgressInfo("extracting", i, n, label, [], list(timeline))
 
-        t2 = time.time()
-        batch_size = 15
+        t1 = time.time()
+
+        # Step 1: Classify (fast, no streaming needed)
+        classified = _classify(client, chunk.text)
+
+        # Step 2: Gen actions only for non-definition articles — STREAMING
+        has_obligations = any(
+            ob.get("loai") in ("bat_buoc", "quyen") for ob in classified
+        )
         actions_map: dict[str, str] = {}
-        for batch_start in range(0, len(classified), batch_size):
-            batch = classified[batch_start: batch_start + batch_size]
-            actions = _node2_actions(client, batch)
-            for action in actions:
-                actions_map[action.get("dieu", "")] = action.get("hanh_dong", "")
-        dur2 = time.time() - t2
+        if has_obligations:
+            user_prompt = ACTION_USER.format(article_text=chunk.text)
+            final_text = ""
+            for partial_text in _call_llm_stream(client, ACTION_SYSTEM, user_prompt):
+                final_text = partial_text
+                yield ProgressInfo(
+                    "streaming", i, n, label, [], list(timeline),
+                    streaming_text=partial_text,
+                )
+            # Parse complete JSON
+            actions_list = _parse_json_array(final_text, "actions")
+            for a in actions_list:
+                actions_map[a.get("dieu", "")] = a.get("hanh_dong", "")
 
-        timeline.append(TimelineEntry(
-            timestamp=time.time() - t0,
-            chunk_label=chunk_label,
-            step="actions",
-            duration=dur2,
-            detail=f"→ {len(actions_map)} hành động",
-        ))
+        dur = time.time() - t1
 
-        # Build obligations for this chunk
-        chunk_obs = []
+        # Build obligations
+        noi_dung_html = _text_to_html(chunk.text)
+        obligations = []
         for ob in classified:
             dieu = ob.get("dieu", "")
-            chunk_obs.append(Obligation(
+            obligations.append(Obligation(
                 dieu=dieu,
                 tieu_de=ob.get("tieu_de", ""),
-                noi_dung=ob.get("noi_dung", ""),
+                noi_dung=noi_dung_html,
                 hanh_dong=actions_map.get(dieu, ""),
                 loai=ob.get("loai", "bat_buoc"),
             ))
 
-        articles_done += chunk_article_count
-        yield ProgressInfo("done", articles_done, total_articles, chunk_label, chunk_obs,
-                           list(timeline))
+        timeline.append(TimelineEntry(
+            timestamp=time.time() - t0, label=label, step="extract",
+            duration=dur,
+            detail=f"→ {len(obligations)} nghĩa vụ" + (f", {len(actions_map)} hành động" if actions_map else ""),
+        ))
+
+        yield ProgressInfo("done", i + 1, n, label, obligations, list(timeline))
