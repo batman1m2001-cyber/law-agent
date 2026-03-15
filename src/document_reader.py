@@ -141,24 +141,24 @@ def _text_to_html(plain_text: str) -> str:
 
         # Điều header
         if re.match(r"^Điều\s+\d+\.", stripped):
-            html_parts.append(f"<p><b>{_escape(stripped)}</b></p>")
+            html_parts.append(f"<div style='margin:0'><b>{_escape(stripped)}</b></div>")
         # Chương header
         elif re.match(r"^Chương\s+[IVXLC]+", stripped):
-            html_parts.append(f"<p><b>{_escape(stripped)}</b></p>")
+            html_parts.append(f"<div style='margin:0'><b>{_escape(stripped)}</b></div>")
         # Mục header
         elif re.match(r"^Mục\s+\d+\.", stripped):
-            html_parts.append(f"<p><b>{_escape(stripped)}</b></p>")
+            html_parts.append(f"<div style='margin:0'><b>{_escape(stripped)}</b></div>")
         # Numbered items: "1.", "2.", etc.
         elif re.match(r"^\d+\.\s", stripped):
-            html_parts.append(f"<p style='margin-left:8px'>{_escape(stripped)}</p>")
+            html_parts.append(f"<div style='margin:0;padding-left:8px'>{_escape(stripped)}</div>")
         # Lettered items: "a)", "b)", etc.
         elif re.match(r"^[a-zđ]\)\s", stripped):
-            html_parts.append(f"<p style='margin-left:16px'>{_escape(stripped)}</p>")
+            html_parts.append(f"<div style='margin:0;padding-left:16px'>{_escape(stripped)}</div>")
         # Dash items
         elif stripped.startswith("-"):
-            html_parts.append(f"<p style='margin-left:16px'>{_escape(stripped)}</p>")
+            html_parts.append(f"<div style='margin:0;padding-left:16px'>{_escape(stripped)}</div>")
         else:
-            html_parts.append(f"<p>{_escape(stripped)}</p>")
+            html_parts.append(f"<div style='margin:0'>{_escape(stripped)}</div>")
 
     return "".join(html_parts)
 

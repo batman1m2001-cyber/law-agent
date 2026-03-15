@@ -1,6 +1,7 @@
 """Create formatted Excel output from extracted obligations."""
 
 import io
+import re
 from datetime import date, datetime
 
 from openpyxl import Workbook
@@ -17,14 +18,26 @@ HEADERS = [
     "Nghĩa vụ pháp luật",
     "Hành động Techcombank cần thực hiện",
     "Có bắt buộc hay không",
+    "Chủ thể tương tác",
+    "Chủ thể hoạt động",
 ]
 
-COL_WIDTHS = [30, 18, 14, 14, 55, 55, 15]
+COL_WIDTHS = [30, 18, 14, 14, 55, 55, 15, 25, 25]
 
 HEADER_FILL = PatternFill("solid", fgColor="4472C4")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
 ALT_FILL = PatternFill("solid", fgColor="DCE6F1")
 WHITE_FILL = PatternFill("solid", fgColor="FFFFFF")
+def _strip_html(html: str) -> str:
+    """Convert HTML to plain text for Excel cells."""
+    text = re.sub(r"<br\s*/?>", "\n", html, flags=re.IGNORECASE)
+    text = re.sub(r"</p>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<p[^>]*>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 THIN_BORDER = Border(
     left=Side(style="thin"),
     right=Side(style="thin"),
@@ -48,7 +61,7 @@ def create_excel(
     ws.title = "Nghĩa vụ tuân thủ"
 
     # Row 1: Title (merged)
-    ws.merge_cells("A1:G1")
+    ws.merge_cells("A1:I1")
     title_cell = ws["A1"]
     title_cell.value = "Nghĩa vụ pháp luật"
     title_cell.font = Font(bold=True, size=13)
@@ -68,7 +81,8 @@ def create_excel(
         fill = ALT_FILL if i % 2 == 1 else WHITE_FILL
 
         # Build nghia vu text: "Điều X. Title\nNội dung"
-        nghia_vu_text = f"Điều {ob.dieu}. {ob.tieu_de}\n{ob.noi_dung}" if ob.tieu_de else ob.noi_dung
+        noi_dung_plain = _strip_html(ob.noi_dung)
+        nghia_vu_text = f"Điều {ob.dieu}. {ob.tieu_de}\n{noi_dung_plain}" if ob.tieu_de else noi_dung_plain
 
         bat_buoc = "x" if ob.loai == "bat_buoc" else ""
 
@@ -80,6 +94,8 @@ def create_excel(
             nghia_vu_text,
             ob.hanh_dong,
             bat_buoc,
+            ob.chu_the_tuong_tac,
+            ob.chu_the_hoat_dong,
         ]
 
         for col_idx, value in enumerate(row_data, start=1):
@@ -91,7 +107,7 @@ def create_excel(
             if col_idx == 4 and isinstance(value, (date, datetime)):
                 cell.number_format = "DD/MM/YYYY"
             if col_idx == 7:
-                cell.alignment = Alignment(horizontal="center", vertical="top")
+                cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
 
     # Column widths
     for col_idx, width in enumerate(COL_WIDTHS, start=1):

@@ -13,18 +13,18 @@ from src.extractor import extract_obligations_stream
 
 
 def process_document(file):
-    """Generator that yields (progress_html, dataframe, excel_path)."""
+    """Generator that yields (progress_html, dataframe, excel_path, obligations_state, meta_state)."""
     if file is None:
-        yield "Upload file để bắt đầu.", pd.DataFrame(), None
+        yield "Upload file để bắt đầu.", pd.DataFrame(), None, [], None
         return
 
     t_start = time.time()
-    yield _progress_bar(0, 1, "Đọc văn bản..."), pd.DataFrame(), None
+    yield _progress_bar(0, 1, "Đọc văn bản..."), pd.DataFrame(), None, [], None
 
     try:
         text = read_document(file.name)
     except Exception as e:
-        yield f"<b style='color:red'>Lỗi đọc file: {e}</b>", pd.DataFrame(), None
+        yield f"<b style='color:red'>Lỗi đọc file: {e}</b>", pd.DataFrame(), None, [], None
         return
 
     meta = extract_metadata(text)
@@ -34,7 +34,7 @@ def process_document(file):
 
     all_obligations = []
     skipped = []
-    df = pd.DataFrame(columns=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB"])
+    df = pd.DataFrame(columns=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB", "Chủ thể tương tác", "Chủ thể hoạt động"])
     info = None
 
     for info in extract_obligations_stream(chunks):
@@ -43,12 +43,12 @@ def process_document(file):
         if info.phase == "done" and info.new_obligations:
             all_obligations.extend(info.new_obligations)
             df = _build_df(all_obligations)
-        yield _build_status(header, info, skipped, t_start), df, None
+        yield _build_status(header, info, skipped, t_start), df, None, list(all_obligations), meta
 
     # Generate Excel
     elapsed = time.time() - t_start
     if not all_obligations:
-        yield header + "<br><b>Không tìm thấy nghĩa vụ nào.</b>", df, None
+        yield header + "<br><b>Không tìm thấy nghĩa vụ nào.</b>", df, None, [], None
         return
 
     excel_buf = create_excel(
@@ -68,15 +68,33 @@ def process_document(file):
         f"<b style='color:#2e7d32'>Hoàn tất! {len(all_obligations)} nghĩa vụ "
         f"trong {_fmt(elapsed)}</b></div>"
     )
-    yield final, df, tmp.name
+    yield final, df, tmp.name, list(all_obligations), meta
 
 
-def _on_stop(current_html):
+def _on_stop(current_html, obligations, meta):
     stop_msg = (
         "<div style='margin-top:8px;padding:8px;background:#ffebee;border-radius:6px'>"
         "<b style='color:#c62828'>Đã dừng trích xuất.</b></div>"
     )
-    return (current_html or "") + stop_msg
+    html = (current_html or "") + stop_msg
+
+    if not obligations:
+        return html, None
+
+    # Generate partial Excel from whatever was collected so far
+    ten = meta.ten_van_ban if meta else ""
+    so = meta.so_van_ban if meta else "partial"
+    ngay = meta.ngay_hieu_luc if meta else ""
+    excel_buf = create_excel(obligations, ten, so, ngay)
+    tmp = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=f"__{so.replace('/', '.')}_partial.xlsx",
+        prefix="NghiaVu_",
+    )
+    tmp.write(excel_buf.getvalue())
+    tmp.close()
+
+    return html, tmp.name
 
 
 def _build_df(obligations):
@@ -86,7 +104,9 @@ def _build_df(obligations):
             "Loại": {"bat_buoc": "Bắt buộc", "quyen": "Quyền", "dinh_nghia": "Định nghĩa"}.get(ob.loai, ob.loai),
             "Tiêu đề": ob.tieu_de,
             "Nghĩa vụ pháp luật": ob.noi_dung,
-            "Hành động TCB": ob.hanh_dong,
+            "Hành động TCB": ob.hanh_dong.replace("\n", "<br>") if ob.hanh_dong else "",
+            "Chủ thể tương tác": ob.chu_the_tuong_tac,
+            "Chủ thể hoạt động": ob.chu_the_hoat_dong,
         }
         for ob in obligations
     ])
@@ -190,6 +210,9 @@ def _build_status(header, info, skipped, t_start):
 with gr.Blocks(title="Trích xuất Nghĩa vụ Tuân thủ") as app:
     gr.Markdown("## Trích xuất Nghĩa vụ Tuân thủ Pháp luật")
 
+    obligations_state = gr.State([])
+    meta_state = gr.State(None)
+
     with gr.Row():
         with gr.Column(scale=2):
             file_input = gr.File(
@@ -197,29 +220,30 @@ with gr.Blocks(title="Trích xuất Nghĩa vụ Tuân thủ") as app:
                 file_types=[".doc", ".docx"],
             )
             run_btn = gr.Button("Phân tích", variant="primary")
-            stop_btn = gr.Button("Dừng", variant="stop")
+            stop_btn = gr.Button("Dừng & Tải Excel", variant="stop")
             progress_html = gr.HTML(value="Upload file và bấm Phân tích để bắt đầu.")
 
         with gr.Column(scale=3):
             results_table = gr.Dataframe(
-                headers=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB"],
-                datatype=["str", "str", "str", "html", "str"],
+                headers=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB", "Chủ thể tương tác", "Chủ thể hoạt động"],
+                datatype=["str", "str", "str", "html", "html", "str", "str"],
                 label="Kết quả trích xuất",
                 interactive=False,
                 wrap=True,
-                column_widths=["60px", "80px", "150px", "350px", "300px"],
+                column_widths=["60px", "80px", "150px", "350px", "300px", "150px", "150px"],
+                max_height=800,
             )
             excel_file = gr.File(label="Tải Excel", visible=True)
 
     run_event = run_btn.click(
         fn=process_document,
         inputs=[file_input],
-        outputs=[progress_html, results_table, excel_file],
+        outputs=[progress_html, results_table, excel_file, obligations_state, meta_state],
     )
     stop_btn.click(
         fn=_on_stop,
-        inputs=[progress_html],
-        outputs=[progress_html],
+        inputs=[progress_html, obligations_state, meta_state],
+        outputs=[progress_html, excel_file],
         cancels=[run_event],
     )
 

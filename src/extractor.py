@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Generator
@@ -35,6 +36,8 @@ class Obligation:
     noi_dung: str  # HTML formatted from original doc
     hanh_dong: str
     loai: str
+    chu_the_tuong_tac: str = ""
+    chu_the_hoat_dong: str = ""
 
 
 @dataclass
@@ -128,6 +131,34 @@ def _parse_json_array(text: str, key: str = "") -> list[dict]:
     return []
 
 
+_KHOAN_RE = re.compile(r'^(\d+)\.\s', re.MULTILINE)
+
+
+def _extract_khoan_text(article_text: str, dieu: str) -> str:
+    """Extract the khoản text for a dieu code like '4.2' (khoản 2).
+    Falls back to full article text if khoản not found or dieu has no sub-number.
+    """
+    parts = dieu.split(".")
+    if len(parts) < 2:
+        return article_text
+    khoan_num = parts[1]
+    matches = list(_KHOAN_RE.finditer(article_text))
+    target = None
+    for m in matches:
+        if m.group(1) == khoan_num:
+            target = m
+            break
+    if target is None:
+        return article_text
+    start = target.start()
+    end = len(article_text)
+    for m in matches:
+        if m.start() > start:
+            end = m.start()
+            break
+    return article_text[start:end].strip()
+
+
 def _classify(client: OpenAI, article_text: str) -> list[dict]:
     user_prompt = CLASSIFY_USER.format(article_text=article_text)
     response = _call_llm(client, CLASSIFY_SYSTEM, user_prompt)
@@ -146,6 +177,15 @@ def extract_obligations_stream(
     for i, chunk in enumerate(chunks):
         label = f"{chunk.article_id}. {chunk.article_title}"
 
+        SKIP_TITLE_KEYWORDS = ["giải thích từ ngữ"]
+        if any(kw in chunk.article_title.lower() for kw in SKIP_TITLE_KEYWORDS):
+            timeline.append(TimelineEntry(
+                timestamp=time.time() - t0, label=label, step="skip",
+                duration=0, detail="Bỏ qua: điều giải thích từ ngữ",
+            ))
+            yield ProgressInfo("skip", i + 1, n, label, [], list(timeline))
+            continue
+
         if len(chunk.text) > MAX_ARTICLE_CHARS:
             timeline.append(TimelineEntry(
                 timestamp=time.time() - t0, label=label, step="skip",
@@ -159,7 +199,11 @@ def extract_obligations_stream(
         t1 = time.time()
 
         # Step 1: Classify (fast, no streaming needed)
-        classified = _classify(client, chunk.text)
+        try:
+            classified = _classify(client, chunk.text)
+        except Exception as e:
+            logger.warning(f"Classify failed for {label}: {e}")
+            classified = []
 
         # Step 2: Gen actions only for non-definition articles — STREAMING
         has_obligations = any(
@@ -167,33 +211,62 @@ def extract_obligations_stream(
         )
         actions_map: dict[str, str] = {}
         if has_obligations:
-            user_prompt = ACTION_USER.format(article_text=chunk.text)
+            obligation_dieu_keys = [ob.get("dieu", "") for ob in classified if ob.get("loai") in ("bat_buoc", "quyen")]
+            dieu_keys_str = ", ".join(f'"{k}"' for k in obligation_dieu_keys)
+            # Escape braces in article text to avoid .format() KeyError
+            safe_text = chunk.text.replace("{", "{{").replace("}", "}}")
+            user_prompt = ACTION_USER.format(article_text=safe_text, dieu_keys=dieu_keys_str)
             final_text = ""
-            for partial_text in _call_llm_stream(client, ACTION_SYSTEM, user_prompt):
-                final_text = partial_text
-                yield ProgressInfo(
-                    "streaming", i, n, label, [], list(timeline),
-                    streaming_text=partial_text,
-                )
-            # Parse complete JSON
-            actions_list = _parse_json_array(final_text, "actions")
-            for a in actions_list:
-                actions_map[a.get("dieu", "")] = a.get("hanh_dong", "")
+            try:
+                for partial_text in _call_llm_stream(client, ACTION_SYSTEM, user_prompt):
+                    final_text = partial_text
+                    yield ProgressInfo(
+                        "streaming", i, n, label, [], list(timeline),
+                        streaming_text=partial_text,
+                    )
+                # Parse complete JSON
+                actions_list = _parse_json_array(final_text, "actions")
+                for a in actions_list:
+                    actions_map[a.get("dieu", "")] = a.get("hanh_dong", "")
+            except Exception as e:
+                logger.warning(f"Action generation failed for {label}: {e}")
 
         dur = time.time() - t1
 
         # Build obligations
-        noi_dung_html = _text_to_html(chunk.text)
         obligations = []
+        seen_dinh_nghia = False
         for ob in classified:
+            loai = ob.get("loai", "bat_buoc")
+
+            # Deduplicate: only 1 dinh_nghia entry per article
+            if loai == "dinh_nghia":
+                if seen_dinh_nghia:
+                    continue
+                seen_dinh_nghia = True
+
             dieu = ob.get("dieu", "")
+            # Extract only the relevant khoản text for this obligation
+            khoan_text = _extract_khoan_text(chunk.text, dieu)
+            noi_dung_html = _text_to_html(khoan_text)
+            # Use article title from the law document, not LLM-generated tiêu đề
+            tieu_de = chunk.article_title
             obligations.append(Obligation(
                 dieu=dieu,
-                tieu_de=ob.get("tieu_de", ""),
+                tieu_de=tieu_de,
                 noi_dung=noi_dung_html,
                 hanh_dong=actions_map.get(dieu, ""),
-                loai=ob.get("loai", "bat_buoc"),
+                loai=loai,
+                chu_the_tuong_tac=ob.get("chu_the_tuong_tac", ""),
+                chu_the_hoat_dong=ob.get("chu_the_hoat_dong", ""),
             ))
+
+        # Drop invalid điểm-level entries (e.g. dieu="6.4.a") — only article and khoản levels allowed
+        obligations = [ob for ob in obligations if ob.dieu.count(".") <= 1]
+
+        # Drop whole-article entries (e.g. dieu="24") when sub-khoản entries exist (e.g. "24.1", "24.2")
+        child_bases = {ob.dieu.split(".")[0] for ob in obligations if "." in ob.dieu}
+        obligations = [ob for ob in obligations if "." in ob.dieu or ob.dieu not in child_bases]
 
         timeline.append(TimelineEntry(
             timestamp=time.time() - t0, label=label, step="extract",
