@@ -21,7 +21,19 @@ from .prompts import (
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+
+if _PROVIDER == "openrouter":
+    MODEL = os.getenv("OPENROUTER_MODEL", "qwen/qwen-2.5-72b-instruct")
+    _CLIENT = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+    )
+else:
+    MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+    _CLIENT = OpenAI()
+
+logger.info(f"LLM provider: {_PROVIDER}, model: {MODEL}")
 
 MAX_ARTICLE_CHARS = 30000
 
@@ -169,7 +181,7 @@ def extract_obligations_stream(
     chunks: list[Chunk],
 ) -> Generator[ProgressInfo, None, None]:
     """Yield ProgressInfo per article. Streams action generation tokens."""
-    client = OpenAI()
+    client = _CLIENT
     n = len(chunks)
     timeline: list[TimelineEntry] = []
     t0 = time.time()
