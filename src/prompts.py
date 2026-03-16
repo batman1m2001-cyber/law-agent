@@ -22,10 +22,11 @@ Nhiệm vụ: Đọc một Điều luật, xác định và phân loại các ng
 
 ## Chủ thể tương tác (chu_the_tuong_tac):
 Chỉ điền khi điều luật ĐỀ CẬP RÕ RÀNG đến nhóm chủ thể đó. Để trống ("") nếu không xác định được.
+Đây là NHÓM/CATEGORY, KHÔNG phải tên bộ phận cụ thể — KHÔNG điền HĐQT, TGĐ, BKS... vào đây (những giá trị đó thuộc chu_the_hoat_dong).
 Có thể chọn nhiều, phân cách bằng dấu phẩy:
 - "Khách hàng" — khi luật nhắc đến khách hàng, người gửi tiền, người vay...
 - "Cơ quan nhà nước" — khi luật nhắc đến NHNN, cơ quan thanh tra, kiểm toán nhà nước...
-- "Quản trị nội bộ" — khi luật quy định về cơ cấu, quy trình, kiểm soát nội bộ của ngân hàng
+- "Quản trị nội bộ" — khi luật quy định về cơ cấu tổ chức, quy trình, kiểm soát nội bộ, nhiệm vụ/quyền hạn của các bộ phận bên trong ngân hàng (HĐQT, TGĐ, BKS, ủy ban...)
 
 ## Chủ thể hoạt động (chu_the_hoat_dong):
 Điền TẤT CẢ cấp/bộ phận được đề cập trong khoản — bao gồm cả trong các điểm a, b, c... và mục con i, ii... bên trong khoản. KHÔNG chỉ lấy chủ ngữ chính của khoản; phải quét toàn bộ nội dung các điểm con để tìm mọi bộ phận được nhắc đến. Để trống ("") nếu toàn bộ khoản chỉ nói chung chung đến "ngân hàng" mà không chỉ rõ cấp/bộ phận cụ thể nào.
