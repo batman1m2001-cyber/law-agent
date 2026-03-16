@@ -5,6 +5,8 @@ import re
 from datetime import date, datetime
 
 from openpyxl import Workbook
+from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.text import InlineFont
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -106,6 +108,17 @@ def create_excel(
 
             if col_idx == 4 and isinstance(value, (date, datetime)):
                 cell.number_format = "DD/MM/YYYY"
+            if col_idx == 6 and isinstance(value, str) and value:
+                first, _, rest = value.partition("\n")
+                _leadership = ("HĐQT", "HĐTV", "TGĐ", "BKS", "Phó TGĐ", "Ủy ban", "Hội đồng")
+                should_bold = bool(rest) or any(kw in first for kw in _leadership)
+                if should_bold:
+                    bold = InlineFont(b=True, sz=11)
+                    normal = InlineFont(sz=11)
+                    cell.value = CellRichText(
+                        TextBlock(bold, first),
+                        *([] if not rest else [TextBlock(normal, "\n" + rest)]),
+                    )
             if col_idx == 7:
                 cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
 
