@@ -28,7 +28,8 @@ Có thể chọn nhiều, phân cách bằng dấu phẩy:
 - "Quản trị nội bộ" — khi luật quy định về cơ cấu, quy trình, kiểm soát nội bộ của ngân hàng
 
 ## Chủ thể hoạt động (chu_the_hoat_dong):
-Điền tất cả cấp/bộ phận được đề cập trong khoản — bao gồm cả trong các điểm a, b, c... và mục con i, ii... bên trong khoản. Để trống ("") nếu toàn bộ khoản chỉ nói chung chung đến "ngân hàng" mà không chỉ rõ cấp/bộ phận cụ thể nào.
+Điền TẤT CẢ cấp/bộ phận được đề cập trong khoản — bao gồm cả trong các điểm a, b, c... và mục con i, ii... bên trong khoản. KHÔNG chỉ lấy chủ ngữ chính của khoản; phải quét toàn bộ nội dung các điểm con để tìm mọi bộ phận được nhắc đến. Để trống ("") nếu toàn bộ khoản chỉ nói chung chung đến "ngân hàng" mà không chỉ rõ cấp/bộ phận cụ thể nào.
+Ví dụ: Khoản có chủ ngữ là TGĐ nhưng các điểm a, b, c... nhắc đến Hội đồng rủi ro, Hội đồng ALCO, Hội đồng quản lý vốn, Bộ phận tuân thủ, Bộ phận quản lý rủi ro, Hội đồng phê duyệt tín dụng, Phó TGĐ → kết quả phải là "TGĐ, HĐ rủi ro, HĐ ALCO, HĐ quản lý vốn, BPTT, BPQLRR, HĐ phê duyệt tín dụng, Phó TGĐ, HĐ khác".
 Có thể chọn nhiều, phân cách bằng dấu phẩy. Chọn trong các giá trị:
 - "HĐQT" — khi luật nhắc đến Hội đồng quản trị
 - "UB" — khi luật nhắc đến Ủy ban (Ủy ban quản lý rủi ro, Ủy ban nhân sự...)
@@ -66,7 +67,11 @@ Nhiệm vụ: Chuyển từng khoản của điều luật thành hành động 
 ## Nguyên tắc:
 - Giữ đủ TẤT CẢ các điểm (a, b, c, d, đ, e...) và mục con (i, ii, iii...) trong khoản — KHÔNG gộp hay bỏ sót
 - Mỗi điểm (a, b, c...) = 1 bullet riêng; mỗi mục con (i, ii...) = 1 sub-bullet thụt vào. Nếu 1 điểm chứa nhiều nghĩa vụ riêng biệt (ví dụ: vừa "thành lập X", vừa "cơ cấu X theo NHNN"), tách thành nhiều sub-bullet "   -" thay vì gộp làm một
-- Khi 1 bullet chứa DANH SÁCH LIỆT KÊ INLINE (đặc biệt sau "trừ trường hợp", "bao gồm", "gồm:", "như:") có từ 2 mục trở lên → tách các mục đó thành sub-bullet "   -" thay vì giữ trên 1 dòng. Ví dụ:
+- Khi 1 bullet chứa DANH SÁCH LIỆT KÊ INLINE (đặc biệt sau "trừ trường hợp", "bao gồm", "gồm:", "như:") có từ 2 mục trở lên → chỉ tách thành sub-bullet "   -" khi MỖI MỤC LÀ MỘT THỰC THỂ CÓ TÊN RIÊNG BIỆT (tên hội đồng, tên bộ phận khác nhau). KHÔNG tách khi các mục là mô tả đặc điểm/hoạt động của cùng một loại đối tượng (dù có từ "bộ phận" lặp lại).
+  Ví dụ KHÔNG tách (giữ nguyên 1 dòng):
+  ĐÚNG: "• Là các bộ phận tạo ra rủi ro, gồm bộ phận tạo ra doanh thu, thực hiện các quyết định có rủi ro, thực hiện phân bổ hạn mức rủi ro theo từng hoạt động kinh doanh/nghiệp vụ; và bộ phận tạo ra rủi ro khác"
+  SAI: "• Là các bộ phận tạo ra rủi ro, bao gồm:\n   - Bộ phận tạo ra doanh thu\n   - Bộ phận thực hiện các quyết định có rủi ro\n   - Bộ phận tạo ra rủi ro khác"
+  Ví dụ NÊN tách (các thực thể có tên riêng):
   THAY VÌ: "• ...không được đảm nhiệm chức vụ khác, trừ trường hợp TGĐ, Hội đồng xử lý rủi ro, các ủy ban do HĐQT thành lập"
   VIẾT: "• ...không được đảm nhiệm chức vụ khác, trừ:\n   - TGĐ theo Luật Các tổ chức tín dụng\n   - Chức danh tại Hội đồng xử lý rủi ro\n   - Chức danh tại các ủy ban do HĐQT, HĐTV thành lập"
 - TẤT CẢ các điểm (a, b, c, d, đ, e, g, h, i, k...) của cùng 1 khoản phải nằm trong MỘT hanh_dong duy nhất — KHÔNG được tách thành nhiều JSON entry cho cùng 1 mã dieu
