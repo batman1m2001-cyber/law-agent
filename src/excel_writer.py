@@ -20,11 +20,18 @@ HEADERS = [
     "Nghĩa vụ pháp luật",
     "Hành động Techcombank cần thực hiện",
     "Có bắt buộc hay không",
+    "Phân loại",
     "Chủ thể tương tác",
     "Chủ thể hoạt động",
 ]
 
-COL_WIDTHS = [30, 18, 14, 14, 55, 55, 15, 25, 25]
+_LOAI_LABEL = {
+    "bat_buoc": "Nghĩa vụ",
+    "quyen": "Quyền",
+    "dinh_nghia": "Quy định chung",
+}
+
+COL_WIDTHS = [30, 18, 14, 14, 55, 55, 15, 18, 25, 25]
 
 HEADER_FILL = PatternFill("solid", fgColor="4472C4")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
@@ -96,6 +103,7 @@ def create_excel(
             nghia_vu_text,
             ob.hanh_dong,
             bat_buoc,
+            _LOAI_LABEL.get(ob.loai, "Không"),
             ob.chu_the_tuong_tac,
             ob.chu_the_hoat_dong,
         ]
@@ -119,7 +127,7 @@ def create_excel(
                         TextBlock(bold, first),
                         *([] if not rest else [TextBlock(normal, "\n" + rest)]),
                     )
-            if col_idx == 7:
+            if col_idx in (7, 8):
                 cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
 
     # Column widths
