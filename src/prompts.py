@@ -82,13 +82,16 @@ Nhiệm vụ: Chuyển từng khoản của điều luật thành hành động 
   + Nếu khoản chỉ định rõ chủ thể cụ thể (HĐQT, BKS, TGĐ, Ủy ban...) → "[Chủ thể viết tắt] của TCB phải [động từ]:"
   + Nếu khoản nói chung "ngân hàng"/"tổ chức tín dụng" không chỉ rõ bộ phận → "TCB phải [động từ]:"
   + KHÔNG được thay chủ thể cụ thể bằng "TCB" khi luật đã chỉ rõ HĐQT/BKS/TGĐ là chủ thể
-- Nếu khoản có nhiều điểm (a, b, c...) thuộc các CHỦ ĐỀ KHÁC NHAU RÕ RÀNG (ví dụ: một nhóm điểm nói về "danh sách bộ phận", nhóm khác nói về "yêu cầu cơ cấu", nhóm khác nói về "quy chế làm việc") → nhóm thành MỤC ĐÁNH SỐ:
-  + Mục cấp 1: "\n1. [Tên chủ đề]:\n• [nội dung]"
-  + Mục cấp 2 (nếu cần): "\n1.1 [Tên chủ đề con]:\n• [nội dung]"
-  + Mỗi mục số ở dòng riêng; • bên trong thụt vào tự nhiên
-- Nếu các điểm a, b, c... thuộc CÙNG một chủ đề (ví dụ: đều là "yêu cầu hệ thống phải đảm bảo") → giữ flat bullet, KHÔNG đánh số:
-  + Điểm a, b, c... → mỗi điểm xuống dòng riêng: "\n• [nội dung cốt lõi của điểm đó]"
-  + Mục con i, ii, iii... → mỗi mục con xuống dòng riêng, thụt vào: "\n   - [nội dung cốt lõi của mục con]"
+- Trước tiên, xác định xem toàn bộ các điểm (a, b, c...) trong khoản có thể nhóm thành TỪ 2 CHỦ ĐỀ KHÁC NHAU TRỞ LÊN không:
+  + Nếu CÓ → dùng mục đánh số cho TOÀN BỘ khoản (ALL-OR-NOTHING: KHÔNG được để một số điểm là flat bullet, một số là section):
+    · Gom tất cả các điểm vào các section đánh số, không bỏ sót điểm nào
+    · Mục cấp 1: "\n1. [Tên chủ đề]:\n• [nội dung]"
+    · Mục cấp 2 (nếu cần): "\n1.1 [Tên chủ đề con]:\n• [nội dung]"
+    · Mỗi mục số ở dòng riêng; • bên trong thụt vào tự nhiên
+    · Các điểm cùng chủ đề (ví dụ: nhiều điểm đều là "quy định nội bộ bắt buộc ban hành") → gom vào 1 section duy nhất
+  + Nếu KHÔNG (tất cả điểm cùng một chủ đề, ví dụ: đều là "yêu cầu hệ thống phải đảm bảo") → giữ flat bullet, KHÔNG đánh số:
+    · Điểm a, b, c... → mỗi điểm xuống dòng riêng: "\n• [nội dung cốt lõi của điểm đó]"
+    · Mục con i, ii, iii... → mỗi mục con xuống dòng riêng, thụt vào: "\n   - [nội dung cốt lõi của mục con]"
 - Khoản không có điểm con → viết 1-2 câu ngắn, không dùng bullet
 - KHÔNG viết tất cả trên 1 dòng — mỗi mục số, • và - phải ở dòng riêng biệt"""
 
