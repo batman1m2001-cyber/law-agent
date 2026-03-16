@@ -66,6 +66,7 @@ Nhiệm vụ: Chuyển từng khoản của điều luật thành hành động 
 ## Nguyên tắc:
 - Giữ đủ TẤT CẢ các điểm (a, b, c, d, đ, e...) và mục con (i, ii, iii...) trong khoản — KHÔNG gộp hay bỏ sót
 - Mỗi điểm (a, b, c...) = 1 bullet riêng; mỗi mục con (i, ii...) = 1 sub-bullet thụt vào. Nếu 1 điểm chứa nhiều nghĩa vụ riêng biệt (ví dụ: vừa "thành lập X", vừa "cơ cấu X theo NHNN"), tách thành nhiều sub-bullet "   -" thay vì gộp làm một
+- TẤT CẢ các điểm (a, b, c, d, đ, e, g, h, i, k...) của cùng 1 khoản phải nằm trong MỘT hanh_dong duy nhất — KHÔNG được tách thành nhiều JSON entry cho cùng 1 mã dieu
 - Giữ ĐẦY ĐỦ các chi tiết quan trọng trong mỗi điểm: thành phần cụ thể, chức năng cụ thể, điều kiện, thời hạn — không được bỏ sót thông tin có nghĩa
 - Chỉ lược bỏ các cụm từ pháp lý thừa chung chung ("có trách nhiệm", "theo quy định của pháp luật" khi KHÔNG chỉ rõ văn bản/cơ quan cụ thể). LƯU Ý: "theo quy định của Ngân hàng Nhà nước / Bộ... / khoản X Điều Y Luật Z..." là tham chiếu CỤ THỂ — KHÔNG được bỏ; giữ nguyên các danh sách liệt kê bên trong mỗi điểm
 - KHÔNG được bỏ: tên ủy ban/bộ phận cụ thể, tên cơ quan ban hành (NHNN, Bộ...), số điều/khoản tham chiếu, điều kiện số lượng/tỷ lệ cụ thể
@@ -81,10 +82,15 @@ Nhiệm vụ: Chuyển từng khoản của điều luật thành hành động 
   + Nếu khoản chỉ định rõ chủ thể cụ thể (HĐQT, BKS, TGĐ, Ủy ban...) → "[Chủ thể viết tắt] của TCB phải [động từ]:"
   + Nếu khoản nói chung "ngân hàng"/"tổ chức tín dụng" không chỉ rõ bộ phận → "TCB phải [động từ]:"
   + KHÔNG được thay chủ thể cụ thể bằng "TCB" khi luật đã chỉ rõ HĐQT/BKS/TGĐ là chủ thể
-- Điểm a, b, c... → mỗi điểm xuống dòng riêng: "\n• [nội dung cốt lõi của điểm đó]"
-- Mục con i, ii, iii... → mỗi mục con xuống dòng riêng, thụt vào: "\n   - [nội dung cốt lõi của mục con]"
+- Nếu khoản có nhiều điểm (a, b, c...) thuộc các CHỦ ĐỀ KHÁC NHAU RÕ RÀNG (ví dụ: một nhóm điểm nói về "danh sách bộ phận", nhóm khác nói về "yêu cầu cơ cấu", nhóm khác nói về "quy chế làm việc") → nhóm thành MỤC ĐÁNH SỐ:
+  + Mục cấp 1: "\n1. [Tên chủ đề]:\n• [nội dung]"
+  + Mục cấp 2 (nếu cần): "\n1.1 [Tên chủ đề con]:\n• [nội dung]"
+  + Mỗi mục số ở dòng riêng; • bên trong thụt vào tự nhiên
+- Nếu các điểm a, b, c... thuộc CÙNG một chủ đề (ví dụ: đều là "yêu cầu hệ thống phải đảm bảo") → giữ flat bullet, KHÔNG đánh số:
+  + Điểm a, b, c... → mỗi điểm xuống dòng riêng: "\n• [nội dung cốt lõi của điểm đó]"
+  + Mục con i, ii, iii... → mỗi mục con xuống dòng riêng, thụt vào: "\n   - [nội dung cốt lõi của mục con]"
 - Khoản không có điểm con → viết 1-2 câu ngắn, không dùng bullet
-- KHÔNG viết tất cả trên 1 dòng — mỗi • và - phải ở dòng riêng biệt"""
+- KHÔNG viết tất cả trên 1 dòng — mỗi mục số, • và - phải ở dòng riêng biệt"""
 
 ACTION_USER = """Chuyển từng khoản của Điều luật sau thành hành động TCB dạng bullet list có cấu trúc.
 Giữ đầy đủ chi tiết của từng điểm, chỉ lược bỏ cụm từ pháp lý thừa, không thêm thông tin ngoài luật.

@@ -239,7 +239,12 @@ def extract_obligations_stream(
                 # Parse complete JSON
                 actions_list = _parse_json_array(final_text, "actions")
                 for a in actions_list:
-                    actions_map[a.get("dieu", "")] = a.get("hanh_dong", "")
+                    dieu_key = a.get("dieu", "")
+                    hanh_dong = a.get("hanh_dong", "")
+                    if dieu_key in actions_map:
+                        actions_map[dieu_key] += "\n" + hanh_dong
+                    else:
+                        actions_map[dieu_key] = hanh_dong
             except Exception as e:
                 logger.warning(f"Action generation failed for {label}: {e}")
 
