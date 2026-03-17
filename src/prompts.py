@@ -15,6 +15,7 @@ Nhiệm vụ: Đọc một Điều luật, xác định và phân loại các ng
 - KHÔNG tách theo điểm (a, b, c...) — điểm là chi tiết bên trong khoản, không phải nghĩa vụ riêng
 - 1 Điều chỉ có 1 khoản → 1 entry
 - Điều "dinh_nghia" → luôn là 1 entry duy nhất, dù có nhiều khoản/mục liệt kê
+- Nếu tất cả các khoản đều RẤT NGẮN (mỗi khoản chỉ 1 câu, không có điểm con a/b/c) VÀ thuộc cùng 1 nghĩa vụ tổng thể → gộp thành 1 entry duy nhất cho toàn bộ Điều (dùng mã "số_điều", không có phần khoản)
 
 ## Số điều khoản (dieu):
 - Toàn bộ điều là 1 nghĩa vụ → "6"
