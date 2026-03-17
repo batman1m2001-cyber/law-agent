@@ -84,10 +84,15 @@ def _call_llm(client: OpenAI, system: str, user: str, retry: int = 2) -> str:
                 response_format={"type": "json_object"},
                 temperature=0.1,
             )
-            return response.choices[0].message.content or ""
+            content = response.choices[0].message.content or ""
+            if not content.strip():
+                raise ValueError("LLM returned empty content (possible rate limit)")
+            return content
         except Exception as e:
             if attempt < retry:
-                logger.warning(f"LLM call failed (attempt {attempt + 1}): {e}")
+                wait = 2 ** attempt  # 1s, 2s, 4s ...
+                logger.warning(f"LLM call failed (attempt {attempt + 1}): {e} — retrying in {wait}s")
+                time.sleep(wait)
                 continue
             raise
 
