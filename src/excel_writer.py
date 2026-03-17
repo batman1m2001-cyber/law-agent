@@ -37,6 +37,29 @@ HEADER_FILL = PatternFill("solid", fgColor="4472C4")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
 ALT_FILL = PatternFill("solid", fgColor="DCE6F1")
 WHITE_FILL = PatternFill("solid", fgColor="FFFFFF")
+def _parse_bold_markers(text: str) -> CellRichText | str:
+    """Convert **bold** markers in text to Excel CellRichText with bold spans.
+
+    Returns plain string if no markers found.
+    """
+    if "**" not in text:
+        return text
+
+    bold_font = InlineFont(b=True, sz=11)
+    normal_font = InlineFont(sz=11)
+
+    segments = re.split(r"\*\*", text)
+    # Even indices = normal text, odd indices = bold text
+    parts = []
+    for i, seg in enumerate(segments):
+        if not seg:
+            continue
+        font = bold_font if i % 2 == 1 else normal_font
+        parts.append(TextBlock(font, seg))
+
+    return CellRichText(*parts) if parts else text
+
+
 def _strip_html(html: str) -> str:
     """Convert HTML to plain text for Excel cells."""
     text = re.sub(r"<br\s*/?>", "\n", html, flags=re.IGNORECASE)
@@ -117,16 +140,7 @@ def create_excel(
             if col_idx == 4 and isinstance(value, (date, datetime)):
                 cell.number_format = "DD/MM/YYYY"
             if col_idx == 6 and isinstance(value, str) and value:
-                first, _, rest = value.partition("\n")
-                _leadership = ("HĐQT", "HĐTV", "TGĐ", "BKS", "Phó TGĐ", "Ủy ban", "Hội đồng")
-                should_bold = bool(rest) or any(kw in first for kw in _leadership)
-                if should_bold:
-                    bold = InlineFont(b=True, sz=11)
-                    normal = InlineFont(sz=11)
-                    cell.value = CellRichText(
-                        TextBlock(bold, first),
-                        *([] if not rest else [TextBlock(normal, "\n" + rest)]),
-                    )
+                cell.value = _parse_bold_markers(value)
             if col_idx in (7, 8):
                 cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
 

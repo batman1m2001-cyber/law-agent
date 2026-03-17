@@ -103,7 +103,9 @@ Nhiệm vụ: Chuyển từng khoản của điều luật thành hành động 
     · Điểm a, b, c... → mỗi điểm xuống dòng riêng: "\n• [nội dung cốt lõi của điểm đó]"
     · Mục con i, ii, iii... → mỗi mục con xuống dòng riêng, thụt vào: "\n   - [nội dung cốt lõi của mục con]"
 - Khoản không có điểm con → viết 1-2 câu ngắn, không dùng bullet
-- KHÔNG viết tất cả trên 1 dòng — mỗi mục số, • và - phải ở dòng riêng biệt"""
+- KHÔNG viết tất cả trên 1 dòng — mỗi mục số, • và - phải ở dòng riêng biệt
+- Thêm dòng trống giữa các bullet cấp 1 (•) khi mỗi bullet dài hơn 1 dòng — giúp dễ đọc hơn
+- Dùng **text** để in đậm cụm từ chủ đề/đối tượng chính ở đầu mỗi bullet cấp 1 (•), thường là phần trước dấu ":" hoặc phần nêu chủ thể/nghĩa vụ chính (ví dụ: "**Việc phân cấp thẩm quyền**:", "**Chuẩn mực đạo đức nghề nghiệp**", "**Quy định nội bộ về kiểm toán nội bộ**") — KHÔNG in đậm toàn bộ câu, chỉ in đậm cụm từ ngắn gọn nêu bật chủ đề"""
 
 ACTION_USER = """Chuyển từng khoản của Điều luật sau thành hành động TCB dạng bullet list có cấu trúc.
 Giữ đầy đủ chi tiết của từng điểm, chỉ lược bỏ cụm từ pháp lý thừa, không thêm thông tin ngoài luật.
