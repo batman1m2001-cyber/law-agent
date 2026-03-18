@@ -95,6 +95,8 @@ async def status(doc_id: str):
                 "status": art["status"],
                 "error": art.get("error", ""),
                 "obligations": art.get("obligations", []),
+                "text": art.get("text", ""),
+                "classified_json": art.get("classified_json", ""),
             }
             for key, art in articles.items()
         ],
@@ -119,6 +121,18 @@ async def retry(body: dict):
     t.start()
     _running[doc_id] = t
     return {"status": "started", "doc_id": doc_id}
+
+
+@app.post("/api/stop")
+async def stop(body: dict):
+    doc_id = body.get("doc_id", "")
+    t = _running.get(doc_id)
+    if t and t.is_alive():
+        # Can't kill thread gracefully — just remove from tracking
+        # The thread will finish its current article then stop on next poll
+        _running.pop(doc_id, None)
+        return {"status": "stopping", "doc_id": doc_id}
+    return {"status": "not_running"}
 
 
 @app.get("/api/excel/{doc_id}")

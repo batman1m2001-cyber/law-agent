@@ -25,6 +25,7 @@
     <!-- Buttons -->
     <div class="btn-row">
       <button class="btn btn-primary" id="btnExtract" disabled>Extract</button>
+      <button class="btn btn-stop" id="btnStop" disabled>Stop</button>
       <button class="btn btn-secondary" id="btnRetry" disabled>Retry Failed</button>
       <button class="btn btn-secondary" id="btnExcel" disabled>Download Excel</button>
     </div>
@@ -46,10 +47,17 @@
       <div class="article-list" id="articleList"></div>
     </div>
 
-    <!-- Obligations -->
-    <div class="obligations-section" id="obligationsSection">
-      <h2 id="obligationsTitle">Obligations</h2>
-      <div id="obligationsList"></div>
+    <!-- Article detail panel -->
+    <div class="detail-section" id="detailSection">
+      <h2 id="detailTitle">Detail</h2>
+      <div class="detail-tabs">
+        <button class="tab active" data-tab="obligations" id="tabObligations">Obligations</button>
+        <button class="tab" data-tab="content" id="tabContent">Article Text</button>
+        <button class="tab" data-tab="classified" id="tabClassified">Classify JSON</button>
+      </div>
+      <div class="tab-panel" id="panelObligations"></div>
+      <div class="tab-panel" id="panelContent" style="display:none"></div>
+      <div class="tab-panel" id="panelClassified" style="display:none"></div>
     </div>
   </div>
 

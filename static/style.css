@@ -44,6 +44,9 @@ header .badge {
 .btn-primary { background: #7c3aed; color: white; }
 .btn-primary:hover { background: #6d28d9; }
 .btn-primary:disabled { background: #3a3a5c; color: #666; cursor: not-allowed; }
+.btn-stop { background: #991b1b; color: #fca5a5; }
+.btn-stop:hover { background: #7f1d1d; }
+.btn-stop:disabled { background: #3a3a5c; color: #666; cursor: not-allowed; }
 .btn-secondary { background: #2a2a4a; color: #c4b5fd; }
 .btn-secondary:hover { background: #3a3a5c; }
 .btn-secondary:disabled { background: #1e1e38; color: #444; cursor: not-allowed; }
@@ -128,6 +131,34 @@ header .badge {
 .ob-action {
   font-size: 12px; color: #ccc; white-space: pre-wrap; line-height: 1.6;
   background: #161628; padding: 10px 12px; border-radius: 6px; margin-top: 8px;
+}
+
+/* Detail panel */
+.detail-section { margin-bottom: 20px; display: none; }
+.detail-section h2 {
+  font-size: 14px; color: #888; margin-bottom: 12px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.detail-tabs {
+  display: flex; gap: 4px; margin-bottom: 12px;
+}
+.tab {
+  padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
+  font-family: inherit; font-size: 12px; background: #2a2a4a; color: #888;
+  transition: all 0.15s;
+}
+.tab:hover { background: #3a3a5c; color: #ccc; }
+.tab.active { background: #7c3aed; color: white; }
+.tab-panel { min-height: 60px; }
+.article-text {
+  font-size: 12px; color: #ccc; white-space: pre-wrap; line-height: 1.6;
+  background: #161628; padding: 14px; border-radius: 8px; max-height: 400px;
+  overflow-y: auto;
+}
+.classify-json {
+  font-size: 11px; color: #a0a0a0; white-space: pre-wrap; line-height: 1.5;
+  background: #161628; padding: 14px; border-radius: 8px; max-height: 400px;
+  overflow-y: auto;
 }
 
 /* Spinner */

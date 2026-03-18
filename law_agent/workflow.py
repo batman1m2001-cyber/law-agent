@@ -28,7 +28,7 @@ from law_agent.prompts import CLASSIFY_SYSTEM, CLASSIFY_USER, ACTION_SYSTEM, ACT
 # Workflow graph
 # =============================================================================
 
-with GraphOp(name="law-extractor", concurrency=1) as graph:
+with GraphOp(name="law-extractor", concurrency=2) as graph:
     # Read document
     doc = read_doc(file_path=PARENT["file_path"])
 
