@@ -48,7 +48,7 @@ with GraphOp(name="law-extractor", concurrency=2) as graph:
 
     # Classify (LLM) + save to JSON
     classify = chain(
-        resource="qwen-30b-a3b",
+        resource="gpt-4o",
         template={"system": CLASSIFY_SYSTEM, "user": CLASSIFY_USER},
         article_text=articles["text"],
         response_format={"type": "json_object"},
@@ -73,7 +73,7 @@ with GraphOp(name="law-extractor", concurrency=2) as graph:
 
     # Generate actions (LLM)
     actions = chain(
-        resource="qwen-30b-a3b",
+        resource="gpt-4o",
         template={"system": ACTION_SYSTEM, "user": ACTION_USER},
         article_text=prepared["safe_text"],
         dieu_keys=prepared["dieu_keys"],

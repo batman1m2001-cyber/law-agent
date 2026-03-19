@@ -122,11 +122,12 @@ def parse_and_prepare(
     """Parse classify JSON, build dieu_keys for action generation."""
     content = classify_content or cached_content
     obligations = _parse_json_array(content, "obligations")
-    has_obligations = any(ob.get("loai") in ("bat_buoc", "quyen") for ob in obligations)
+    ACTIONABLE = ("bat_buoc", "quyen")
+    has_obligations = any(ob.get("loai") in ACTIONABLE for ob in obligations)
 
     dieu_keys = ""
     if has_obligations:
-        keys = [ob.get("dieu", "") for ob in obligations if ob.get("loai") in ("bat_buoc", "quyen")]
+        keys = [ob.get("dieu", "") for ob in obligations if ob.get("loai") in ACTIONABLE]
         dieu_keys = ", ".join(f'"{k}"' for k in keys)
 
     safe_text = text.replace("{", "{{").replace("}", "}}")
@@ -195,6 +196,8 @@ def save_actions(
         seen_dinh_nghia = False
         for ob in classified:
             loai = ob.get("loai", "bat_buoc")
+            if loai == "khong_ap_dung":
+                continue
             if loai == "dinh_nghia":
                 if seen_dinh_nghia:
                     continue
