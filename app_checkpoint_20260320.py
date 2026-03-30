@@ -1,47 +1,16 @@
 """Gradio UI for the Legal Obligation Extractor."""
 
-import os
 import re
 import tempfile
 import time
 
 import gradio as gr
 import pandas as pd
-from dotenv import load_dotenv
-
-load_dotenv()
-
-_USERNAME = os.getenv("APP_USERNAME", "")
-_PASSWORD = os.getenv("APP_PASSWORD", "")
-
-
-def _check_auth(username: str, password: str) -> bool:
-    return username == _USERNAME and password == _PASSWORD
 
 from src.chunker import chunk_document
 from src.document_reader import extract_metadata, read_document
-from src.excel_writer import create_excel, _dedupe_chu_the_tuong_tac, _fix_chu_the_tuong_tac, _resolve_chu_the_hoat_dong
+from src.excel_writer import create_excel, _dedupe_chu_the_tuong_tac, _resolve_chu_the_hoat_dong
 from src.extractor import extract_obligations_stream
-
-_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-
-def _list_preset_files():
-    result = {}
-    if os.path.isdir(_DATA_DIR):
-        for f in sorted(os.listdir(_DATA_DIR)):
-            if f.lower().endswith((".doc", ".docx")):
-                result[f] = os.path.join(_DATA_DIR, f)
-    return result
-
-PRESET_FILES = _list_preset_files()
-
-
-def _resolve_path(file, preset_name):
-    if file is not None:
-        return file.name
-    if preset_name and preset_name in PRESET_FILES:
-        return PRESET_FILES[preset_name]
-    return None
 
 
 def _article_num(chunk) -> int:
@@ -49,13 +18,12 @@ def _article_num(chunk) -> int:
     return int(m.group()) if m else 0
 
 
-def scan_file(file, preset_name):
-    """Return an HTML summary of article range when a file is uploaded or preset selected."""
-    path = _resolve_path(file, preset_name)
-    if path is None:
-        return "Upload file hoặc chọn file có sẵn, rồi bấm Phân tích."
+def scan_file(file):
+    """Return an HTML summary of article range when a file is uploaded."""
+    if file is None:
+        return "Upload file và bấm Phân tích để bắt đầu."
     try:
-        text = read_document(path)
+        text = read_document(file.name)
         chunks = chunk_document(text)
         if not chunks:
             return "Không tìm thấy điều nào trong văn bản."
@@ -72,22 +40,17 @@ def scan_file(file, preset_name):
         return f"<b style='color:red'>Lỗi đọc file: {e}</b>"
 
 
-def process_document(file, preset_name, from_article, to_article):
+def process_document(file, from_article, to_article):
     """Generator that yields (progress_html, dataframe, excel_path, obligations_state, meta_state)."""
-    path = _resolve_path(file, preset_name)
-    if path is None:
-        yield "Upload file hoặc chọn file có sẵn để bắt đầu.", pd.DataFrame(), None, [], None
-        return
-
-    if file is not None and os.path.getsize(path) > 2 * 1024 * 1024:
-        yield "<b style='color:red'>File vượt quá giới hạn 2MB.</b>", pd.DataFrame(), None, [], None
+    if file is None:
+        yield "Upload file để bắt đầu.", pd.DataFrame(), None, [], None
         return
 
     t_start = time.time()
     yield _progress_bar(0, 1, "Đọc văn bản..."), pd.DataFrame(), None, [], None
 
     try:
-        text = read_document(path)
+        text = read_document(file.name)
     except Exception as e:
         yield f"<b style='color:red'>Lỗi đọc file: {e}</b>", pd.DataFrame(), None, [], None
         return
@@ -117,7 +80,7 @@ def process_document(file, preset_name, from_article, to_article):
 
     all_obligations = []
     skipped = []
-    df = pd.DataFrame(columns=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB", "Chủ thể tương tác", "Người trực tiếp thực thi", "Chủ thể hoạt động", "Nhóm nghĩa vụ"])
+    df = pd.DataFrame(columns=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB", "Chủ thể tương tác", "Người trực tiếp thực thi", "Chủ thể hoạt động"])
     info = None
 
     for info in extract_obligations_stream(chunks):
@@ -188,9 +151,8 @@ def _build_df(obligations):
             "Tiêu đề": ob.tieu_de,
             "Nghĩa vụ pháp luật": ob.noi_dung,
             "Hành động TCB": ob.hanh_dong.replace("\n", "<br>") if ob.hanh_dong else "",
-            "Chủ thể tương tác": _dedupe_chu_the_tuong_tac(_fix_chu_the_tuong_tac(ob.noi_dung, ob.chu_the_tuong_tac)),
+            "Chủ thể tương tác": _dedupe_chu_the_tuong_tac(ob.chu_the_tuong_tac),
             "Chủ thể hoạt động": _resolve_chu_the_hoat_dong(ob),
-            "Nhóm nghĩa vụ": ob.nhom_nghia_vu,
         }
         for ob in obligations
     ])
@@ -303,61 +265,47 @@ with gr.Blocks(title="Trích xuất Nghĩa vụ Tuân thủ") as app:
                 label="Upload văn bản pháp luật (.doc / .docx)",
                 file_types=[".doc", ".docx"],
             )
-            if PRESET_FILES:
-                gr.Markdown("**Hoặc chọn file có sẵn:**")
-                preset_radio = gr.Radio(
-                    choices=list(PRESET_FILES.keys()),
-                    label="",
-                    value=None,
-                )
-            else:
-                preset_radio = gr.Radio(choices=[], label="File có sẵn", visible=False, value=None)
-
             with gr.Row():
                 from_article = gr.Number(
                     label="Từ điều",
                     precision=0,
+                    minimum=1,
                     value=None,
                     placeholder="(tất cả)",
                 )
                 to_article = gr.Number(
                     label="Đến điều",
                     precision=0,
+                    minimum=1,
                     value=None,
                     placeholder="(tất cả)",
                 )
             run_btn = gr.Button("Phân tích", variant="primary")
             stop_btn = gr.Button("Dừng & Tải Excel", variant="stop")
-            progress_html = gr.HTML(value="Upload file hoặc chọn file có sẵn, rồi bấm Phân tích.")
+            progress_html = gr.HTML(value="Upload file và bấm Phân tích để bắt đầu.")
 
         with gr.Column(scale=3):
             results_table = gr.Dataframe(
-                headers=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB", "Chủ thể tương tác", "Người trực tiếp thực thi", "Chủ thể hoạt động", "Nhóm nghĩa vụ"],
-                datatype=["str", "str", "str", "html", "html", "str", "str", "str", "str"],
+                headers=["Điều", "Loại", "Tiêu đề", "Nghĩa vụ pháp luật", "Hành động TCB", "Chủ thể tương tác", "Người trực tiếp thực thi", "Chủ thể hoạt động"],
+                datatype=["str", "str", "str", "html", "html", "str", "str", "str"],
                 label="Kết quả trích xuất",
                 interactive=False,
                 wrap=True,
-                column_widths=["60px", "80px", "150px", "350px", "300px", "150px", "150px", "150px", "180px"],
+                column_widths=["60px", "80px", "150px", "350px", "300px", "150px", "150px", "150px"],
                 max_height=800,
             )
             excel_file = gr.File(label="Tải Excel", visible=True)
 
-    # Khi upload file → bỏ chọn preset
+    # Show article range info when file is uploaded
     file_input.change(
-        fn=lambda f: (None, scan_file(f, None)),
+        fn=scan_file,
         inputs=[file_input],
-        outputs=[preset_radio, progress_html],
-    )
-    # Khi chọn preset → bỏ upload
-    preset_radio.change(
-        fn=lambda p: (None, scan_file(None, p)),
-        inputs=[preset_radio],
-        outputs=[file_input, progress_html],
+        outputs=[progress_html],
     )
 
     run_event = run_btn.click(
         fn=process_document,
-        inputs=[file_input, preset_radio, from_article, to_article],
+        inputs=[file_input, from_article, to_article],
         outputs=[progress_html, results_table, excel_file, obligations_state, meta_state],
     )
     stop_btn.click(
@@ -368,4 +316,4 @@ with gr.Blocks(title="Trích xuất Nghĩa vụ Tuân thủ") as app:
     )
 
 if __name__ == "__main__":
-    app.launch(theme=gr.themes.Soft(), auth=_check_auth, share=False)
+    app.launch(theme=gr.themes.Soft())

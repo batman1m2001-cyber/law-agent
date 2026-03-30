@@ -14,5 +14,3 @@ wheels/
 
 # Temp files
 *.tmp
-output_test.json
-work/
